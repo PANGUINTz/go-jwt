@@ -3,10 +3,14 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"panguintz/jwt-api/orm"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/golang-jwt/jwt"
 )
 
 type RegisterType struct {
@@ -15,6 +19,8 @@ type RegisterType struct {
 	Fullname string `json:"fullname" binding:"required"`
 	Avatar   string `json:"avatar" binding:"required"`
 }
+
+var hamcSampleSecret []byte
 
 
 func hashedPassword(password string) (string, error) {
@@ -90,8 +96,25 @@ func Login(context *gin.Context){
 		context.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "user not found"})
 		return 
 	}
-	
-	if verifyPassword(json.Password, hasUser.Password) {
-		context.JSON(200,gin.H{"status": "200", "message": "success"})
+
+	hamcSampleSecret = []byte(os.Getenv("JWT_TOKEN"))
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"UserId": hasUser.ID,
+		"exp": time.Now().Add(time.Minute * 1).Unix(),
+	})
+
+	tokenString, err :=token.SignedString(hamcSampleSecret)
+	if err != nil {
+		context.JSON(400, gin.H{"status":false,"message":"token is missing"})
 	}
+	fmt.Print(json.Password, hasUser.Password)
+	if verifyPassword(hasUser.Password,json.Password) {
+		context.JSON(200,gin.H{"status": true, "message": "success", "token": tokenString})
+		return	
+	} else {
+		context.JSON(http.StatusBadRequest, gin.H{"error": "Login Failed"})
+		return
+	}
+	// context.JSON(200, gin.H{"status": false, "message": "Login Successfully"})
 }
